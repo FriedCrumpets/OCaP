@@ -84,6 +84,12 @@ def detectOrigin(header):
     }
 
     origin = ''
+
+    if 'type' in header:
+        index = header.index('type')
+        header.pop(index)
+        header.insert(index, 'product_type')
+
     for k, v in match.items():
         if all(str in header for str in v):
             return k

@@ -128,8 +128,17 @@ def getVariants(row):
         skus, vList = '',''
     return skus, vList
 
-def createOption(locations, row):
-    pass
+def attributes(row):
+    attributeSet = row.get('attribute_set')
+    # m for magento
+    mAttributes = {k : v for k, v in row.items() if attributeSet in k}
+    # e for EKM
+    i = 0
+    eAttributes = {}
+    for k, v in mAttributes.items():
+        i+=1
+        eAttributes[f'Attribute:{k}'] = f'{v}:{i}000:True:{k.replace("_", " ")}'
+    return eAttributes
 
 def createVariant(row, sku, variant, imageLink, fieldnames):
     productVariant = {key: '' for key in fieldnames}
@@ -145,7 +154,7 @@ def createVariant(row, sku, variant, imageLink, fieldnames):
             value = saver(v)
             productVariant[match.get(k, 'skip')] = dispatch[match.get(k, 'skip')](value, imageLink)
 
-    imgs = images(row['additional_images'], imageLink)
+    imgs = images(row.get('additional_images', ''), imageLink)
     for x in range(len(imgs)):
         productVariant[f'Image{x+1}'] = imgs[x]
 
@@ -165,7 +174,7 @@ def createVariant(row, sku, variant, imageLink, fieldnames):
 
     {productVariant[x]: '0' for x in ['Price', 'Stock'] if productVariant[x] == ''}
 
-    return productVariant
+    return {**productVariant, **attributes(row)}
 
 def createProduct(row, imageLink, fieldnames):
     product = {key: '' for key in fieldnames}
@@ -176,7 +185,7 @@ def createProduct(row, imageLink, fieldnames):
             value = saver(v)
             product[match.get(k, 'skip')] = dispatch[match.get(k, 'skip')](value, imageLink)
 
-    imgs = images(row['additional_images'], imageLink)
+    imgs = images(row.get('additional_images', ''), imageLink)
     imgs.insert(0, image(row['image'], imageLink))
     for x in range(len(imgs)):
         product[f'Image{x+1}'] = imgs[x]
@@ -187,7 +196,7 @@ def createProduct(row, imageLink, fieldnames):
     if product['CategoryPath'] == '': product['CategoryPath'] = 'Home'
 
     product.pop('skip')
-    return product
+    return {**product, **attributes(row)}
 
 def updateVariant(row, oldVariant, imageLink):
     needed = ['price', 'qty']
@@ -198,6 +207,20 @@ def updateVariant(row, oldVariant, imageLink):
                 {match.get(k):dispatch[match.get(k)](value, imageLink)}
             )
     return oldVariant
+
+def mutateProduct(product, productRow):
+    productCopy = {key: value for key, value in product.items()}
+    changes = {k: v for k, v in {
+        'Action': 'Add Product Variant',
+        'Description': '',
+        'CategoryPath' : productRow.get('categories', 'Home'),
+        'Name' : productRow.get('name', ''),
+        'VariantNames' : 'Size',
+        'VariantItem1' : product.get('Name', '')
+    }.items()}
+
+    return {**productCopy, **changes}
+
 
 def split(row, imageLink, fieldnames):
     product = createProduct(row, imageLink, fieldnames)
@@ -211,6 +234,8 @@ def checkType(skuList, row):
     # Check the product type and return value accordingly
     if row['product_type'] == 'configurable':
         return 'split'
+    elif row['product_type'] == 'grouped':
+        return 'group'
     elif row['sku'] in skuList:
         return 'variant'
     else:
@@ -220,6 +245,9 @@ def additional_images(product_row, row, additional_image_number, imageLink):
     if additional_image_number < 5:
         product_row[f'Image{additional_image_number+1}'] = images(row['additional_images'],imageLink)
     return product_row
+
+def checkHeader(header, *args):
+    
 
 def convert(file, imageLink):
     # Creates variable to hold fieldnames
@@ -234,7 +262,7 @@ def convert(file, imageLink):
     for row in file:
         # skip blank rows
         if row['product_type'] == '':
-            if row['additional_images'] != '':
+            if row.get('additional_images', '') != '':
                 additional_image_number += 1
                 converted[-1] = additional_images(converted[-1], row, additional_image_number, imageLink)
                 continue
@@ -252,6 +280,8 @@ def convert(file, imageLink):
         type = checkType(skuList, row)
         if type == 'split':
             product, variants, skus = split(row, imageLink, EKM_Header)
+            if not all(str in header for str in product.keys()):
+                EKM_Header = list(dict.fromkeys(EKM_header += product.keys()))
             converted.append(product)
             if variants != '':
                 {converted.append(v) for v in variants}
@@ -259,11 +289,21 @@ def convert(file, imageLink):
                 {skuList.append(sku) for sku in skus}
                 # Creates list of skus to reference in the future for assigning prices
             continue
+        elif type == 'group':
+            converted.append(createProduct(row, imageLink, EKM_Header))
+            for sku in row['sku'].split('-'):
+                index = converted.index(next(r for r in converted if r['Code'] == sku))
+                product = converted.pop(index)
+                converted.append(mutateProduct(product, row))
+            continue
         elif type == 'variant':
             continue
         else:
             # Creates a basic product and resets the variants variables
-            converted.append(createProduct(row, imageLink, EKM_Header))
+            p = createProduct(row, imageLink, EKM_Header)
+            if not all(str in header for str in p.keys()):
+                EKM_Header = list(dict.fromkeys(EKM_header += p.keys()))
+            converted.append(p)
             continue
 
     return converted, EKM_Header
