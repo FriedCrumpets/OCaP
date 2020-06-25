@@ -137,7 +137,7 @@ def attributes(row):
     eAttributes = {}
     for k, v in mAttributes.items():
         i+=1
-        eAttributes[f'Attribute:{k}'] = f'{v}:{i}000:True:{k.replace("_", " ")}'
+        eAttributes[f'Attribute:{k.replace("_", " ")}'] = f'{v}:{i}000:True:{k.replace("_", " ")}'
     return eAttributes
 
 def createVariant(row, sku, variant, imageLink, fieldnames):
@@ -246,8 +246,11 @@ def additional_images(product_row, row, additional_image_number, imageLink):
         product_row[f'Image{additional_image_number+1}'] = images(row['additional_images'],imageLink)
     return product_row
 
-def checkHeader(header, *args):
-    
+def checkHeader(header, newHeader):
+    # This needs to be checked for variants every single row :D
+    if not all(str in header for str in list(newHeader)):
+        return list(dict.fromkeys(header+list(newHeader)))
+    return header
 
 def convert(file, imageLink):
     # Creates variable to hold fieldnames
@@ -275,16 +278,18 @@ def convert(file, imageLink):
             oldVariant = converted.pop(index)
             updatedVariant = updateVariant(row, oldVariant, imageLink)
             converted.insert(index, updatedVariant)
+            EKM_Header = checkHeader(EKM_Header, updatedVariant.keys())
             continue
 
         type = checkType(skuList, row)
         if type == 'split':
             product, variants, skus = split(row, imageLink, EKM_Header)
-            if not all(str in header for str in product.keys()):
-                EKM_Header = list(dict.fromkeys(EKM_header += product.keys()))
+            EKM_Header = checkHeader(EKM_Header, product.keys())
             converted.append(product)
             if variants != '':
-                {converted.append(v) for v in variants}
+                for v in variants:
+                    EKM_Header = checkHeader(EKM_Header, v.keys())
+                    converted.append(v)
             if skus != '':
                 {skuList.append(sku) for sku in skus}
                 # Creates list of skus to reference in the future for assigning prices
@@ -301,8 +306,7 @@ def convert(file, imageLink):
         else:
             # Creates a basic product and resets the variants variables
             p = createProduct(row, imageLink, EKM_Header)
-            if not all(str in header for str in p.keys()):
-                EKM_Header = list(dict.fromkeys(EKM_header += p.keys()))
+            EKM_Header = checkHeader(EKM_Header, p.keys())
             converted.append(p)
             continue
 
