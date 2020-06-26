@@ -94,9 +94,11 @@ def createProduct(row, fieldnames, imageLink):
     product['Action'] = 'Add Product'
 
     for k, v in row.items():
-        if v != '':
-            value = saver(v)
-            product.update({match.get(k, 'skip'): dispatch[match.get(k, 'skip')](value)})
+        if v == '':
+            continue
+        product.update(
+            {match.get(k, 'skip'): dispatch[match.get(k, 'skip')](saver(v))}
+        )
 
     images = row['productImageUrl'].split(';', 5)
     if len(images) > 5: images.pop()
@@ -108,28 +110,38 @@ def createProduct(row, fieldnames, imageLink):
 
 def createOption(row, fieldnames, index, type):
     option = {k: '' for k in fieldnames}
-    option['Action'] = 'Add Product Option'
 
-    option['CategoryPath'] = f"Home > {row['collection']}"
-    option['Name'] = name(row['name'])
+    changes = {
+        'Action' : 'Add Product Option',
+        'CategoryPath' : f"Home > {row['collection']}",
+        'Name' : name(row['name'])
+    }
+
+    oItemOrder = lambda i: (':').join([
+        '0' for x in i.split(';')
+    ])
+    oValidation = lambda v: 'NotEmpty' if v == 'TRUE' else ''
     if type == 'drop':
-        option['OptionName'] = row[f'productOptionName{index}']
-        option['OptionSize'] = '240'
-        option['OptionType'] = row[f'productOptionType{index}'].replace('_', '')
-        option['OptionValidation'] = ''
-        option['OptionItemPriceExtra'] = (':').join(['0' for x in row[f'productOptionDescription{index}'].split(';')])
-        option['OptionItemName'] = row[f"productOptionDescription{index}"].replace(';',':')
-        option['OptionItemOrder'] = (':').join(['0' for x in row[f'productOptionDescription{index}'].split(';')])
-        return option
-    if type == 'text':
-        option['OptionName'] = row[f'customTextField{index}']
-        option['OptionSize'] = row[f'customTextCharLimit{index}']
-        option['OptionType'] = 'TEXT'
-        option['OptionValidation'] = 'NotEmpty' if row[f'customTextMandatory{index}'] == 'TRUE' else ''
-        option['OptionItemPriceExtra'] = ''
-        option['OptionItemName'] = ''
-        option['OptionItemOrder'] = ''
-        return option
+        changes.update({
+            'OptionName': row[f'productOptionName{index}'],
+            'OptionSize': '240',
+            'OptionType': row[f'productOptionType{index}'].replace('_', ''),
+            'OptionValidation': '',
+            'OptionItemPriceExtra': oItemOrder(row[f'productOptionDescription{index}']),
+            'OptionItemName': row[f"productOptionDescription{index}"].replace(';',':'),
+            'OptionItemOrder': oItemOrder(row[f'productOptionDescription{index}']),
+        })
+    elif type == 'text':
+        changes.update({
+            'OptionName': row[f'customTextField{index}'],
+            'OptionSize': row[f'customTextCharLimit{index}'],
+            'OptionType': 'TEXT',
+            'OptionValidation': oValidation(row[f'customTextMandatory{index}']),
+            'OptionItemPriceExtra': '',
+            'OptionItemName': '',
+            'OptionItemOrder': '',
+        })
+    return {**option, **changes}
 
 def updateOption(row, oldOption, x):
     index = oldOption['OptionItemName'].split(':').index(row[f'productOptionDescription{x}'])
@@ -138,7 +150,7 @@ def updateOption(row, oldOption, x):
     oldOption['OptionItemPriceExtra'] = (':').join(priceList)
     return oldOption
 
-def convert(file, imageLink):
+def convert(file, imageLink, *args):
     wix_Header = file.fieldnames
     EKM_Header = getFieldNames()
 

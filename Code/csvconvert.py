@@ -16,6 +16,8 @@ def start(file, location):
 
     # Image link variable for magento
     imageLink = ''
+    # Attribute set variable for magento
+    attributeSet = ''
 
     with open(file, newline = '', encoding='utf-8', errors='ignore') as f:
         # Creates an ordered dictionary of the file
@@ -33,10 +35,14 @@ def start(file, location):
             f = file.split('/')
             fn = f.pop()
             t = popup(fn)
-            imageLink = t.popup()
+            imageLink = t.images()
+
+        if origin == 'magento':
+            t = popup('')
+            attributeSet = t.attributes()
 
         # Conversion
-        newfile, fieldnames = convert(oldFile, origin, imageLink)
+        newfile, fieldnames = convert(oldFile, origin, imageLink, attributeSet)
 
     # Get old filename
     oldfilename = getoldfilename(file)
@@ -56,7 +62,7 @@ def createfilename(oldfilename, newfilelocation):
 def getoldfilename(file):
     return file.split('/')[-1] # returns the last element of the list
 
-def convert(oldFile, origin, imageLink):
+def convert(oldFile, origin, imageLink, attributeSet):
     # Converts the files based on their origin
     dispatch = {
         'shopify': shopifyConverter,
@@ -69,7 +75,7 @@ def convert(oldFile, origin, imageLink):
     newfile, fieldnames = '', ''
 
     lAl = dispatch.get(origin, '') # locked and loaded
-    if lAl != '': newfile, fieldnames = lAl.convert(oldFile, imageLink)
+    if lAl != '': newfile, fieldnames = lAl.convert(oldFile, imageLink, attributeSet)
     return newfile, fieldnames
 
 # returns a string for the origin of the file

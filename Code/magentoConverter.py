@@ -111,38 +111,39 @@ def getVariants(row):
     skus, vList = [], []
 
     variants = row['configurable_variations']
-    if variants != '':
-        # loops through all variants in cell
-        for variant in variants.split('|'):
-            # splits variants down to core and allocates placement
-            v = variant.split(',')
-            sku = v[0].split('=')
-            skus.append(sku[1])
+    if variants == '':
+        return '', ''
+    # loops through all variants in cell
+    for variant in variants.split('|'):
+        # splits variants down to core and allocates placement
+        v = variant.split(',')
+        sku = v[0].split('=')
+        skus.append(sku[1])
 
-            vara = v[1].split('=')
-            var = vara[0].replace('_',' ')
-            va = var.title()
-            vList.append({va:vara[1]})
-            continue
-    else:
-        skus, vList = '',''
-    return skus, vList
+        vara = v[1].split('=')
+        var = vara[0].replace('_',' ')
+        va = var.title()
+        vList.append({va:vara[1]})
+        continue
 
-def attributes(row):
-    attributeSet = row.get('attribute_set')
+def attributes(row, attributeSet):
+    rKeys = row.keys()
+    attributeList = [attr for attr in attributeSet.split(';') if attr in rKeys]
+    if len(attributeList) < 1: return {'':''}
     # m for magento
-    mAttributes = {k : v for k, v in row.items() if attributeSet in k}
+    mAttributes = {attribute: row[attribute] for attribute in attributeList}
     # e for EKM
     i = 0
     eAttributes = {}
     for k, v in mAttributes.items():
+        if v == '' or v not in row.keys():
+            continue
         i+=1
-        eAttributes[f'Attribute:{k.replace("_", " ")}'] = f'{v}:{i}000:True:{k.replace("_", " ")}'
+        eAttributes[f'Attribute:{k.replace("_", " ")}'] = f'{v.replace(":"," ")}:{i}000:True:{k.replace("_", " ").title()}'
     return eAttributes
 
-def createVariant(row, sku, variant, imageLink, fieldnames):
+def createVariant(row, sku, variant, imageLink, fieldnames, attributeSet):
     productVariant = {key: '' for key in fieldnames}
-    productVariant['Action'] = 'Add Product Variant'
 
     # Initialises variant k, v attributes as found in get variants
     variantKey, variantValue = '', ''
@@ -158,27 +159,29 @@ def createVariant(row, sku, variant, imageLink, fieldnames):
     for x in range(len(imgs)):
         productVariant[f'Image{x+1}'] = imgs[x]
 
+    numCheck = lambda s: '0' if s == '' else s
     if productVariant['Stock'] == '': productVariant['Stock'] = '0'
-    productVariant['Attribute:SKU'] = productVariant['Code']
+    changes = {
+        'Action': 'Add Product Variant',
+        'Attribute:SKU' : productVariant['Code'],
+        'VariantNames' : variantKey,
+        'VariantItem1' : variantValue,
+        'Code' : sku,
+        'Attribute:SKU' : sku,
+        'Description': '',
+        'ShortDescription': '',
+        'MetaTitle' : '',
+        'MetaKeywords' : '',
+        'MetaDescription': '',
+        'Stock': numCheck(productVariant['Stock']),
+        'Price': numCheck(productVariant['Price']),
+        'skip': ''
+    }
 
-    productVariant['VariantNames'] = variantKey
-    productVariant['VariantItem1'] = variantValue
-    productVariant['Code'] = sku
-    productVariant['Attribute:SKU'] = sku
+    return {**productVariant, **changes, **attributes(row, attributeSet)}
 
-    {productVariant.pop(b) for b in [ # a list of things to blank out
-        'Description', 'ShortDescription',
-        'MetaTitle','MetaKeywords','MetaDescription',
-        'skip'
-    ]}
-
-    {productVariant[x]: '0' for x in ['Price', 'Stock'] if productVariant[x] == ''}
-
-    return {**productVariant, **attributes(row)}
-
-def createProduct(row, imageLink, fieldnames):
+def createProduct(row, imageLink, fieldnames, attributeSet):
     product = {key: '' for key in fieldnames}
-    product['Action'] = 'Add Product'
 
     for k, v in row.items():
         if v != '' and k != 'additional_images':
@@ -190,13 +193,17 @@ def createProduct(row, imageLink, fieldnames):
     for x in range(len(imgs)):
         product[f'Image{x+1}'] = imgs[x]
 
-    if product['Stock'] == '': product['Stock'] = '0'
-    product['Attribute:SKU'] = product['Code']
-
-    if product['CategoryPath'] == '': product['CategoryPath'] = 'Home'
+    numCheck = lambda s: '0' if s == '' else s
+    catCheck = lambda c: 'Home' if c == '' else c
+    changes = {
+        'Action': 'Add Product',
+        'Stock': numCheck(product['Stock']),
+        'Attribute:SKU' : product['Code'],
+        'CategoryPath' : catCheck(product['CategoryPath'])
+    }
 
     product.pop('skip')
-    return {**product, **attributes(row)}
+    return {**product, **changes, **attributes(row, attributeSet)}
 
 def updateVariant(row, oldVariant, imageLink):
     needed = ['price', 'qty']
@@ -210,24 +217,23 @@ def updateVariant(row, oldVariant, imageLink):
 
 def mutateProduct(product, productRow):
     productCopy = {key: value for key, value in product.items()}
-    changes = {k: v for k, v in {
+    changes = {
         'Action': 'Add Product Variant',
         'Description': '',
         'CategoryPath' : productRow.get('categories', 'Home'),
         'Name' : productRow.get('name', ''),
         'VariantNames' : 'Size',
         'VariantItem1' : product.get('Name', '')
-    }.items()}
+    }
 
     return {**productCopy, **changes}
 
-
-def split(row, imageLink, fieldnames):
-    product = createProduct(row, imageLink, fieldnames)
+def split(row, imageLink, fieldnames, attributeSet):
+    product = createProduct(row, imageLink, fieldnames, attributeSet)
     skus, v = getVariants(row)
     variants = []
     for sku, variant in dict(zip(skus, v)).items():
-        variants.append(createVariant(row, sku, variant, imageLink, fieldnames))
+        variants.append(createVariant(row, sku, variant, imageLink, fieldnames, attributeSet))
     return product, variants, skus
 
 def checkType(skuList, row):
@@ -252,7 +258,7 @@ def checkHeader(header, newHeader):
         return list(dict.fromkeys(header+list(newHeader)))
     return header
 
-def convert(file, imageLink):
+def convert(file, imageLink, attributeSet):
     # Creates variable to hold fieldnames
     # creates a list to contain the converted dictionary lists
     # create empty list to check all future products against
@@ -295,17 +301,25 @@ def convert(file, imageLink):
                 # Creates list of skus to reference in the future for assigning prices
             continue
         elif type == 'group':
-            converted.append(createProduct(row, imageLink, EKM_Header))
-            for sku in row['sku'].split('-'):
-                index = converted.index(next(r for r in converted if r['Code'] == sku))
-                product = converted.pop(index)
-                converted.append(mutateProduct(product, row))
+            product = createProduct(row, imageLink, EKM_Header, attributeSet)
+            total, price, indices = 0, 0, 0;
+            group = row['sku'].split('-')
+            for sku in group:
+                indices = [converted.index(i) for i in [r for r in converted if sku in r['Code']]]
+                for index in indices:
+                    variant = converted.pop(index)
+                    mutant = mutateProduct(variant, row)
+                    converted.insert(index, mutant)
+                    price = variant['Price'] if price < variant['Price'] else price
+                # index = converted.index(next(r for r in converted if r['Code'] == sku))
+            product['Price'] = price
+            converted.insert(0, product)
             continue
         elif type == 'variant':
             continue
         else:
             # Creates a basic product and resets the variants variables
-            p = createProduct(row, imageLink, EKM_Header)
+            p = createProduct(row, imageLink, EKM_Header, attributeSet)
             EKM_Header = checkHeader(EKM_Header, p.keys())
             converted.append(p)
             continue

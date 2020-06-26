@@ -9,8 +9,14 @@ class popup(QInputDialog):
     def __call__(self):
         super(popup,self).__call__(parent)
 
-    def popup(self):
+    def images(self):
         text, ok = self.getText(None, self.filename,
                                          "Location of customer Images", QLineEdit.Normal,
+                                         '')
+        return text
+
+    def attributes(self):
+        text, ok = self.getText(None, '',
+                                         "Attribute names separated by a ';'", QLineEdit.Normal,
                                          '')
         return text

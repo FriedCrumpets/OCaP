@@ -68,14 +68,13 @@ dispatch = {
 
 def createHeader():
     # Etsy fieldnames
-    fieldnames = [
+    return [
         'Action', 'ID', 'Name', 'CategoryPath',
         'Description', 'Price', 'Stock',
         'Image1', 'Image2', 'Image3', 'Image4', 'Image5',
         'OptionName', 'OptionSize', 'OptionType', 'OptionValidation',
         'OptionItemName', 'OptionItemPriceExtra', 'OptionItemOrder'
     ]
-    return fieldnames
     # If Etsy filesnames = etsyEKM, dict = Etsy
 
 def saver(string):
@@ -89,28 +88,28 @@ def createOption(row, fieldnames, x, sk):
     productOption['Action'] = 'Add Product Option'
 
     for k, v in row.items():
-        if v:
-            value = saver(v)
-            productOption[match.get(k, 'skip')] = dispatch[match.get(k, 'skip')](value)
+        if not v:
+            continue
+        value = saver(v)
+        productOption[match.get(k, 'skip')] = dispatch[match.get(k, 'skip')](value)
 
-    optionCells = [
-        'Description', 'Stock', 'Price',
-        'Image1', 'Image2', 'Image3', 'Image4', 'Image5',
-    ]
-    [productOption.pop(oC, None) for oC in optionCells]
-
-    productOption['OptionName'] = row[f'VARIATION {x} NAME']
-    productOption['OptionSize'] = '0'
-    productOption['OptionType'] = 'DROPDOWN'
-    productOption['OptionItemName'] = row[f'VARIATION {x} VALUES'].replace(',',':') if row[f'VARIATION {x} VALUES'] else ''
-    temp = (':').join(['0' for i in row[f'VARIATION {x} VALUES'].split(',')]) if row[f'VARIATION {x} VALUES'] else ''
-    productOption['OptionItemPriceExtra'] = temp
-    productOption['OptionItemOrder'] = temp
-
-    [productOption.pop(f'OptionName{i}', None) for i in range(3)]
-    [productOption.pop(f'OptionItemName{i}', None) for i in range(3)]
-    productOption.pop('skip', None)
-    return productOption
+    # we don't need the below for options so loop and pop
+    oItemName = lambda r: r.replace(',',':') if r else ''
+    oItemOrder = lambda r: (':').join(['0' for i in r.split(',')]) if r else ''
+    changes = {
+        'OptionName': row[f'VARIATION {x} NAME'],
+        'OptionSize': '0',
+        'OptionType': 'DROPDOWN',
+        'OptionItemName' : oItemName(row[f'VARIATION {x} VALUES']),
+        'OptionItemPriceExtra' : oItemOrder(row[f'VARIATION {x} VALUES']),
+        'OptionItemOrder' : oItemOrder(row[f'VARIATION {x} VALUES']),
+    }
+    popit = [f'Image{i}' for i in range(5)] +\
+            [f'OptionName{i}' for i in range(3)] +\
+            [f'OptionItemName{i}'for i in range(3)] + \
+            ['skip', 'Description', 'Stock', 'Price']
+    {productOption.pop(p, None) for p in popit}
+    return {**productOption, **changes}
 
 def createProduct(row, fieldnames):
     # Creates Product row as dictionary sharing fieldnames with the header of the
@@ -120,16 +119,21 @@ def createProduct(row, fieldnames):
     product['Action'] = 'Add Product'
 
     for k, v in row.items():
-        if v:
-            value = saver(v)
-            product[match.get(k, 'skip')] = dispatch[match.get(k, 'skip')](value)
+        if not v:
+            continue
+        value = saver(v)
+        product[match.get(k, 'skip')] = dispatch[match.get(k, 'skip')](value)
 
-        checkNum = ['Price', 'Stock']
-        {product[cn]: 0 if cn == '' else None for cn in checkNum}
-    [product.pop(f'OptionName{i}', None) for i in range(3)]
-    [product.pop(f'OptionItemName{i}', None) for i in range(3)]
-    product.pop('skip', None)
-    return product
+    numCheck = lambda x: x if type(x) == int and x != '' else 0
+    changes = {
+        'Price': numCheck(row['PRICE']),
+        'Stock': numCheck(row['STOCK']),
+    }
+    popit = [f'OptionName{i}' for i in range(3)] +\
+            [f'OptionItemName{i}'for i in range(3)] + \
+            ['skip']
+    {productOption.pop(p, None) for p in popit}
+    return {**product, **changes}
 
 def convert(file, *args):
     # Calls all other methods to write to the file this it done individually
@@ -142,7 +146,6 @@ def convert(file, *args):
             continue
         # Append row to filerow list
         converted.append(createProduct(row, EKM_Header))
-        # try:
         # Check if the row has variants
         x, sk = 0, 0 # x and sk for variant calculation
         for x in range(3):
