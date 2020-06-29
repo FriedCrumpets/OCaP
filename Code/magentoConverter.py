@@ -136,7 +136,7 @@ def attributes(row, attributeSet):
     i = 0
     eAttributes = {}
     for k, v in mAttributes.items():
-        if v == '' or v not in row.keys():
+        if v == '':
             continue
         i+=1
         eAttributes[f'Attribute:{k.replace("_", " ")}'] = f'{v.replace(":"," ")}:{i}000:True:{k.replace("_", " ").title()}'

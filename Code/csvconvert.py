@@ -1,7 +1,7 @@
 #! python3
 import csv
 import Errors
-import shopifyConverter, etsyConverter, magentoConverter, shopwiredConverter, wixConverter
+import shopifyConverter, etsyConverter, magentoConverter, shopwiredConverter, wixConverter, cShopConverter
 from popup import popup
 
 def start(file, location):
@@ -17,7 +17,7 @@ def start(file, location):
     # Image link variable for magento
     imageLink = ''
     # Attribute set variable for magento
-    attributeSet = ''
+    attribute_set = ''
 
     with open(file, newline = '', encoding='utf-8', errors='ignore') as f:
         # Creates an ordered dictionary of the file
@@ -30,19 +30,22 @@ def start(file, location):
         if origin == False: # If the origin is not recognised
             raise Errors.IncorrectFile('File is not recognised') # skips file temporary fix
 
-        # If the origin is magento yeild to get value for image links
-        if origin == 'magento' or origin == 'wix':
+        # If the origin is in iLink yeild to get value for image links
+        iLink = ['magento','wix','cShop']
+        if origin in iLink:
             f = file.split('/')
             fn = f.pop()
             t = popup(fn)
             imageLink = t.images()
 
-        if origin == 'magento':
+        # if file has custom attributes
+        aSet = ['magento', 'cShop']
+        if origin in aSet:
             t = popup('')
-            attributeSet = t.attributes()
+            attribute_set = t.attributes()
 
         # Conversion
-        newfile, fieldnames = convert(oldFile, origin, imageLink, attributeSet)
+        newfile, fieldnames = convert(oldFile, origin, imageLink, attribute_set)
 
     # Get old filename
     oldfilename = getoldfilename(file)
@@ -62,7 +65,7 @@ def createfilename(oldfilename, newfilelocation):
 def getoldfilename(file):
     return file.split('/')[-1] # returns the last element of the list
 
-def convert(oldFile, origin, imageLink, attributeSet):
+def convert(oldFile, origin, imageLink, attribute_set):
     # Converts the files based on their origin
     dispatch = {
         'shopify': shopifyConverter,
@@ -70,23 +73,25 @@ def convert(oldFile, origin, imageLink, attributeSet):
         'magento': magentoConverter,
         'shopwired': shopwiredConverter,
         'wix' : wixConverter,
+        'cShop': cShopConverter,
         '': ''
     }
     newfile, fieldnames = '', ''
 
     lAl = dispatch.get(origin, '') # locked and loaded
-    if lAl != '': newfile, fieldnames = lAl.convert(oldFile, imageLink, attributeSet)
+    if lAl != '': newfile, fieldnames = lAl.convert(oldFile, imageLink, attribute_set)
     return newfile, fieldnames
 
 # returns a string for the origin of the file
 def detectOrigin(header):
     # THE ESSENTIALS :  Name description Price
     match = {
+        'cShop': ['TITLE', 'CATEGORY', 'SECONDARY CATEGORY'],
         'etsy': ['TITLE', 'DESCRIPTION','PRICE'],
         'shopify': ['Title', 'Body (HTML)', 'Variant Price'],
         'magento': ['sku', 'product_type', 'name'],
         'shopwired': ['Item ID', 'Item Name'],
-        'wix': ['fieldType', 'productImageUrl']
+        'wix': ['fieldType', 'productImageUrl'],
     }
 
     origin = ''

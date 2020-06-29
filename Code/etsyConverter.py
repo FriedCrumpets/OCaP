@@ -104,10 +104,12 @@ def createOption(row, fieldnames, x, sk):
         'OptionItemPriceExtra' : oItemOrder(row[f'VARIATION {x} VALUES']),
         'OptionItemOrder' : oItemOrder(row[f'VARIATION {x} VALUES']),
     }
+
     popit = [f'Image{i}' for i in range(5)] +\
             [f'OptionName{i}' for i in range(3)] +\
             [f'OptionItemName{i}'for i in range(3)] + \
             ['skip', 'Description', 'Stock', 'Price']
+
     {productOption.pop(p, None) for p in popit}
     return {**productOption, **changes}
 
@@ -145,7 +147,7 @@ def convert(file, *args):
         if row['TITLE'] == '':
             continue
         # Append row to filerow list
-        converted.append(createProduct(row, EKM_Header))
+        converted.append(createProduct(row, EKM_Header, attribute_set))
         # Check if the row has variants
         x, sk = 0, 0 # x and sk for variant calculation
         for x in range(3):
