@@ -84,7 +84,7 @@ def attributes(row, attribute_set):
     i = 0
     eAttributes = {}
     for k, v in cAttributes.items():
-        if v == '' or v not in row.keys():
+        if v == '':
             continue
         i+=1
         eAttributes[f'Attribute:{k.replace("_", " ")}'] = f'{v.replace(":"," ")}:{i}000:True:{k.replace("_", " ").title()}'
@@ -93,23 +93,28 @@ def attributes(row, attribute_set):
 def createProduct(row, EKM_header, imageLink, attribute_set):
     product = {k: '' for k in EKM_header}
 
+    # The main loop
     {product.update(
         {match.get(k, 'skip'): dispatch[match.get(k, 'skip')](saver(v), imageLink)}
     ) for k, v in row.items() if v != ''}
-
-    changes = {
-        'Action': 'Add Product'
-    }
-
     {product.pop(p, None) for p in ['skip']}
+
+    # lambdas for additional checks in changes
+    price_check = lambda p: p if p != '' else '0'
+
+    # List of changes that exist outside of the main loop
+    changes = {
+        'Action': 'Add Product',
+        'Price': price_check(product.get('Price', ''))
+    }
 
     return {**product, **changes, **attributes(row, attribute_set)}
 
-def createOption(row, EKM_Header):
+def createOptions(row, EKM_Header):
     option = {k: '' for k in EKM_Header}
-    option_prices = [int(v) for v in row.values() if 'PRICE ' in v]
-
-    modified_option_prices = [o - int(option['Price']) for o in option_prices]
+    option_prices = [v for k, v in row.items() if 'PRICE' in k and v != '']
+    modified_option_prices = \
+        [str(float(o) - float(row["PRICE"])) for o in option_prices]
 
     changes = {
         'Action': 'Add Product Option',
@@ -118,15 +123,21 @@ def createOption(row, EKM_Header):
         'OptionName': 'Type',
         'OptionSize': '0',
         'OptionType': 'DROPDOWN',
-        'OptionItemName': (':').join([i for i in range(len(modified_option_prices))]),
+        'OptionItemName': (':').join([str(i) for i in range(len(modified_option_prices))]),
         'OptionItemPriceExtra': (':').join(modified_option_prices),
-        'OptionItemOrder': (':').join([0 for o in modified_option_prices])
+        'OptionItemOrder': (':').join(['0' for o in modified_option_prices])
     }
 
     {option.pop(p, None) for p in \
         ['skip', 'Description', 'Stock', 'Price']}
 
     return {**option, **changes}
+
+def checkHeader(header, newHeader):
+    # This needs to be checked for variants every single row :D
+    if not all(str in header for str in list(newHeader)):
+        return list(dict.fromkeys(header+list(newHeader)))
+    return header
 
 def convert(file, imageLink, attribute_set, *args):
     cShop_Header = file.fieldnames
@@ -138,8 +149,12 @@ def convert(file, imageLink, attribute_set, *args):
         if row.get('TITLE') == '':
             continue
 
-        converted.append(createProduct(row, EKM_Header, imageLink, attribute_set))
-        options = len([k for k in row.keys() if 'PRICE ' in k and k != ''])
-        {converted.append(createOption(row, EKM_Header)) for o in range(options)}
+        product = createProduct(row, EKM_Header, imageLink, attribute_set)
+        converted.append(product)
+        EKM_Header = checkHeader(EKM_Header, product.keys())
+        if len([k for k, v in row.items() if 'PRICE' in k and v != '']) > 1:
+            option = createOptions(row, EKM_Header)
+            converted.append(option)
+            EKM_Header = checkHeader(EKM_Header, option.keys())
 
     return converted, EKM_Header
