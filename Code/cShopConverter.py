@@ -1,63 +1,17 @@
 import re
 
-def name(value, *args):
-    if len(value) > 99:
-        return value[:99]
-    return value
-
-def category(value, *args):
-    if value == '':
-        return 'Home'
-    else:
-        return 'Home > ' + value
-
-def num(value, *args):
+name = lambda v: v if len(v) <= 99 else v[:99]
+category = lambda l: 'Home >' + ('>').join(l) if len(l) > 1 else 'Home'
+image = lambda v, image_link: f'{image_link}{v}.jpg' if v != '' else ''
+tax = lambda v: 1 if v == 'YES' else 2
+price_check = lambda p: p if p != '' else '0'
+def num(value):
     try:
         if value == '' or round(float(value)) < 0:
             return '0'
         return round(float(value))
     except ValueError:
         return '0'
-
-def image(value, imageLink, *args):
-    return f'{imageLink}{value}.jpg'
-
-def tax(value, *args):
-    if value == 'YES': return 1
-    return 2
-
-def gen(value, *args):
-    return value
-
-def skip(value, *args):
-    return ''
-
-match = {
-    'CODE' : 'Code',
-    'TITLE' : 'Name',
-    'PRICE' : 'Price',
-    'CATEGORY' : 'CategoryPath',
-    'SECONDARY CATEGORY' : 'CategoryManagement',
-    'DESCRIPTION': 'Description',
-    'IMAGE' : 'Image1', #images don't show file type, need image link + file type (assume jpg)
-    'IMAGE 2': 'Image2',
-    'IMAGE 3': 'Image3',
-    'VAT': 'TaxRateID' # yes = 1; no = 2.
-}
-
-dispatch = {
-    'Code' : gen,
-    'Name' : name,
-    'Price': num,
-    'CategoryPath': category,
-    'CategoryManagement': category,
-    'Description': gen,
-    'Image1': image,
-    'Image2': image,
-    'Image3': image,
-    'TaxRateID': tax,
-    'skip': skip
-}
 
 def createHeader():
     # cShop fieldnames
@@ -71,6 +25,7 @@ def createHeader():
 
 def saver(string):
     if not string: return
+    string = f'{string}'
     saved = string.replace("'","\'") if "'" in string else string
     saved = string.replace('"', '\"') if '"' in string else string
     return saved
@@ -90,23 +45,30 @@ def attributes(row, attribute_set):
         eAttributes[f'Attribute:{k.replace("_", " ")}'] = f'{v.replace(":"," ")}:{i}000:True:{k.replace("_", " ").title()}'
     return eAttributes
 
-def createProduct(row, EKM_header, imageLink, attribute_set):
+def createProduct(row, EKM_header, image_link, attribute_set):
     product = {k: '' for k in EKM_header}
 
-    # The main loop
-    {product.update(
-        {match.get(k, 'skip'): dispatch[match.get(k, 'skip')](saver(v), imageLink)}
-    ) for k, v in row.items() if v != ''}
-    {product.pop(p, None) for p in ['skip']}
-
-    # lambdas for additional checks in changes
-    price_check = lambda p: p if p != '' else '0'
+    category_chain = ['TYPE', 'CATEGORY', 'BREED/SPECIES']
+    category_management_chain = ['ARTIST', 'TYPE']
 
     # List of changes that exist outside of the main loop
     changes = {
         'Action': 'Add Product',
-        'Price': price_check(product.get('Price', ''))
+        'Code' : row.get('CODE', ''),
+        'Name' : name(row.get('TITLE', '')),
+        'Price': price_check(num(row.get('PRICE', ''))),
+        'CategoryPath': category(
+            [row.get(c, '') for c in category_chain]),
+        'CategoryManagement': category(
+            [row.get(c, '') for c in category_management_chain]),
+        'Description': row.get('DESCRIPTION', ''),
+        'Image1': image(row.get('IMAGE', ''), image_link),
+        'Image2': image(row.get('IMAGE 2', ''), image_link),
+        'Image3': image(row.get('IMAGE 3', ''), image_link),
+        'TaxRateID': tax(row.get('VAT', '')),
     }
+    changes = {k: saver(v) for k, v in changes.items()}
+
 
     return {**product, **changes, **attributes(row, attribute_set)}
 
@@ -116,10 +78,13 @@ def createOptions(row, EKM_Header):
     modified_option_prices = \
         [str(float(o) - float(row["PRICE"])) for o in option_prices]
 
+    category_chain = ['TYPE', 'CATEGORY', 'BREED/SPECIES']
+
     changes = {
         'Action': 'Add Product Option',
         'Name': name(row.get('TITLE', '')),
-        'CategoryPath': category(row.get('CATEGORY', '')),
+        'CategoryPath': category(
+            [row.get(c, None) for c in category_chain]),
         'OptionName': 'Type',
         'OptionSize': '0',
         'OptionType': 'DROPDOWN',
@@ -127,9 +92,9 @@ def createOptions(row, EKM_Header):
         'OptionItemPriceExtra': (':').join(modified_option_prices),
         'OptionItemOrder': (':').join(['0' for o in modified_option_prices])
     }
+    changes = {k: saver(v) for k, v in changes.items()}
 
-    {option.pop(p, None) for p in \
-        ['skip', 'Description', 'Stock', 'Price']}
+    {option.pop(p, None) for p in ['Description', 'Stock', 'Price']}
 
     return {**option, **changes}
 
