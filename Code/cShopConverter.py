@@ -1,7 +1,19 @@
 import re
 
 name = lambda v: v if len(v) <= 99 else v[:99]
-category = lambda l: 'Home >' + ('>').join(l) if len(l) > 1 else 'Home'
+
+def category(l):
+    # TODO: if l contains two categories of the same name adjascent to one anoother remove one
+    a = ['Home']
+    check = a[0]
+    for x in l:
+        a.append(x) if x != check
+        check = x
+    multiple = [x for x in l if l.count(x) > 1])
+    a = [i for i, v in enumerate(l) if v in multiple]
+    # a = [x for x in l if l.count(x) == 1]
+    return 'Home>' + ('>').join(a) if len(a) > 1 else 'Home'
+
 image = lambda v, image_link: f'{image_link}{v}.jpg' if v != '' else ''
 tax = lambda v: 1 if v == 'YES' else 2
 price_check = lambda p: p if p != '' else '0'
@@ -58,9 +70,9 @@ def createProduct(row, EKM_header, image_link, attribute_set):
         'Name' : name(row.get('TITLE', '')),
         'Price': price_check(num(row.get('PRICE', ''))),
         'CategoryPath': category(
-            [row.get(c, '') for c in category_chain]),
+            [row.get(c) for c in category_chain if row.get(c, '') != '']),
         'CategoryManagement': category(
-            [row.get(c, '') for c in category_management_chain]),
+            [row.get(c) for c in category_management_chain if row.get(c, '') != '']),
         'Description': row.get('DESCRIPTION', ''),
         'Image1': image(row.get('IMAGE', ''), image_link),
         'Image2': image(row.get('IMAGE 2', ''), image_link),
