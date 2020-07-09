@@ -4,15 +4,11 @@ name = lambda v: v if len(v) <= 99 else v[:99]
 
 def category(l):
     # TODO: if l contains two categories of the same name adjascent to one anoother remove one
-    a = ['Home']
-    check = a[0]
+    a, check = ['Home'], 'Home'
     for x in l:
-        a.append(x) if x != check
+        a.append(x) if x != check else ''
         check = x
-    multiple = [x for x in l if l.count(x) > 1])
-    a = [i for i, v in enumerate(l) if v in multiple]
-    # a = [x for x in l if l.count(x) == 1]
-    return 'Home>' + ('>').join(a) if len(a) > 1 else 'Home'
+    return ('>').join(a) if len(a) > 1 else 'Home'
 
 image = lambda v, image_link: f'{image_link}{v}.jpg' if v != '' else ''
 tax = lambda v: 1 if v == 'YES' else 2

@@ -1,13 +1,10 @@
 #! python3
 import csv, random, datetime
 
-def category(value):
-    return f'Home > {value}'
-
-def name(value):
-    if len(value) > 99:
-        return value[:99]
-    return value
+category = lambda v: f'Home>{v}' if v else 'Home'
+name = lambda v: v if len(v) < 100 else v[:99]
+gen = lambda v: v
+skip = lambda v: ''
 
 def price(value):
     p = 0
@@ -28,12 +25,6 @@ def stock(value):
     if s < 0:
         return '0'
     return round(s)
-
-def gen(value):
-    return value
-
-def skip(value):
-    return ''
 
 match = {
     'Category 1': 'CategoryPath',

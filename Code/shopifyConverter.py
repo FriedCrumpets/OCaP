@@ -1,30 +1,16 @@
 #! python3
 import csv, random, datetime, Errors
 
-def name(value):
-    if len(value) > 99:
-        return value[:99]
-    return value
+name = lambda v: v if len(v) < 100 else v[:99]
+gen = lambda v: v
+numericValue = lambda v: str(0) if 0 > float(v) or v == '' else v
+variantNames = lambda v: v if v != '' else ''
+default = lambda v: ''
 
 def categoryPath(value):
-    home_category = ['Home']
     category_list = ['Home'] + value.split(', ')
     while '' in category_list: category_list.pop()
-    x = (' > ').join(category_list)
-    return x
-
-def gen(value):
-    return value
-
-def numericValue(value):
-    if 0 > float(value) or value == '':
-        return str(0)
-    else:
-        return value
-
-def variantNames(value):
-    if value != '': return value
-    return ''
+    return (' > ').join(category_list)
 
 def default(value):
     return ''
@@ -68,7 +54,7 @@ dispatch = {
 
 def createHeader():
     # If shopify filenames = shopifyEKM, dict = shopify#
-    fieldnames = [
+    return [
         'Action', 'ID', 'Name', 'CategoryPath', 'Code',
         'Description', 'Brand', 'Price',
         'Image1', 'Image2', 'Image3', 'Image4', 'Image5',
@@ -76,7 +62,6 @@ def createHeader():
         'VariantNames',
         'VariantItem1', 'VariantItem2', 'VariantItem3', 'VariantItem4',
     ]
-    return fieldnames
 
 def saver(string):
     saved = string.replace("'","\'") if "'" in string else string

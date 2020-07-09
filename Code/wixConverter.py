@@ -1,10 +1,10 @@
 
-def name(value):
-    if len(value) > 99: return value[:99]
-    return value
-
-def category(value):
-    return f'Home > {value}'
+name = lambda v: v if len(v) < 100 else v[:99]
+category = lambda v: f'Home > {v}'
+hidden = lambda v: 'yes' if 'TRUE' in v else 'no'
+gen = lambda v: v
+skip = lambda v: ''
+image = lambda v: None
 
 def price(value):
     p = 0
@@ -25,19 +25,6 @@ def stock(value):
     if s < 0:
         return '0'
     return round(s)
-
-def image(value):
-    return
-
-def hidden(value):
-    if 'TRUE' in value: return 'no'
-    return 'yes'
-
-def gen(value):
-    return value
-
-def skip(value):
-    return ''
 
 match = {
     'name': 'Name',
