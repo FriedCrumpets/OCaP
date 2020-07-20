@@ -1,7 +1,14 @@
 #! python3
 import csv
 import Errors
-import shopifyConverter, etsyConverter, magentoConverter, shopwiredConverter, wixConverter, cShopConverter
+import shopifyConverter
+import etsyConverter
+import magentoConverter
+import shopwiredConverter
+import wixConverter
+import cShopConverter
+import wordpressConverter
+
 from popup import popup
 
 def start(file, location):
@@ -74,6 +81,7 @@ def convert(oldFile, origin, imageLink, attribute_set):
         'shopwired': shopwiredConverter,
         'wix' : wixConverter,
         'cShop': cShopConverter,
+        'wordpress': wordpressConverter,
         '': ''
     }
     newfile, fieldnames = '', ''
@@ -91,6 +99,7 @@ def detectOrigin(header):
         'shopify': ['Title', 'Body (HTML)', 'Variant Price'],
         'magento': ['sku', 'product_type', 'name'],
         'shopwired': ['Item ID', 'Item Name'],
+        'wordpress': ['Type', 'Name', 'ID'],
         'wix': ['fieldType', 'productImageUrl'],
     }
 
