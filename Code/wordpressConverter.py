@@ -9,18 +9,13 @@ hidden = lambda v: 'No' if v == 'visible' else 'Yes'
 
 def price(v, *args):
     try: float(v)
-    except: return '0'
-    return '0' if float(v) < 0 else float(v)
+    except: return 0
+    return 0 if float(v) < 0 else float(v)
 
 def stock(v, *args):
     try: float(v)
-    except: return '0'
-    return '0' if float(v) < 0 else round(float(v))
-
-# TODO: redo wordpress
-# TODO: variable products have all variants in product row
-# TODO: create variations and populate with info as it's found
-# TODO: update requires price and other variant information
+    except: return 0
+    return 0 if float(v) < 0 else round(float(v))
 
 def create_simple_product_row(header, row, *args):
     product = {k : '' for k in header}
@@ -51,8 +46,8 @@ def create_simple_product_row(header, row, *args):
     regular_price = price(row.get('Regular price'))
 
     prices = {
-        'Price': sale_price if sale_price != '' else regular_price,
-        'RRP': regular_price if sale_price != '' else '',
+        'Price': sale_price if sale_price != '0' else regular_price,
+        'RRP': regular_price if sale_price != '0' else '',
     }
 
     product = {**product, **changes, **prices, **images}
@@ -67,6 +62,7 @@ def create_variable_product_row(header, row, *args):
     imgs = images_to_list(row.get('Images'))
 
     changes = {
+        'VariableID': row.get('ID'),
         'Action': 'Add Product',
         'CategoryPath': rAmpersand(categoryPath),
         'Name': name(row.get('Name')),
@@ -78,17 +74,17 @@ def create_variable_product_row(header, row, *args):
         'CategoryManagement': rAmpersand(categoryManagement),
         'TaxRateID': tax(row.get('Tax status')),
         'SpecialOffer': special_offer(row.get('Published')),
-        'Hidden': hidden(row.get('is featured?')),
+        'Hidden': hidden(row.get('Visibility in catalogue')),
     }
 
     images = {f'Image{i+1}': v for i, v in enumerate(imgs) if i < 5}
 
-    sale_price = price(row.get('Sale price'))
-    regular_price = price(row.get('Regular price'))
+    sale_price = price(row.get('Meta: _max_variation_sale_price'))
+    regular_price = price(row.get('Meta: _max_variation_regular_price'))
 
     prices = {
-        'Price': sale_price if sale_price != '' else regular_price,
-        'RRP': regular_price if sale_price != '' else '',
+        'Price': sale_price if sale_price != 0 else regular_price,
+        'RRP': regular_price if sale_price != 0 else '',
     }
 
     product = {**product, **changes, **prices, **images}
@@ -108,12 +104,11 @@ def create_variation_product_rows(header, row, product, *args):
         ]
     }
 
-
-    variant_names = variant_information.get('VariantNames')[0]
-    if len(variant_information.get('VariantNames')) > 1:
-        variant_names = (':').join(variant_information.get('VariantNames'))
+    variant_names = (':').join(variant_information.get('VariantNames'))
+    if variant_names.endswith(':'): variant_names = variant_names[:-1]
 
     changes = {
+        'VariableID': row.get('ID'),
         'Action': 'Add Product Variant',
         'SpecialOffer': '',
         'Hidden': '',
@@ -136,16 +131,18 @@ def create_variation_product_rows(header, row, product, *args):
     return variant_list
 
 def update_variant_product_row(header, row, *args):
-    variant = {k: '' for k in header}
     imgs = images_to_list(row.get('Images'))
 
     changes = {
-        'Name': name(row.get('Name')),
-        'Code': row.get('SKU'),
         'Stock': stock(row.get('Stock')),
         'Weight': row.get('Weight (kg)'),
         'TaxRateID': tax(row.get('Tax status')),
+        'VariantItem1': row.get('Attribute 1 value(s)'),
+        'VariantItem2': row.get('Attribute 2 value(s)')
     }
+
+    SKU = row.get('SKU')
+    if SKU != '': changes['Code'] = SKU
 
     images = {f'Image{i+1}': v for i, v in enumerate(imgs) if i < 5}
 
@@ -153,16 +150,16 @@ def update_variant_product_row(header, row, *args):
     regular_price = price(row.get('Regular price'))
 
     prices = {
-        'Price': sale_price if sale_price != '' else regular_price,
-        'RRP': regular_price if sale_price != '' else '',
+        'Price': sale_price if sale_price != 0 else regular_price,
+        'RRP': regular_price if sale_price != 0 else '',
     }
 
-    variant = {**variant, **changes, **prices, **images}
+    variant = {**changes, **prices, **images}
     return variant, False
 
 def create_fieldnames():
     return [
-        'Action', 'ID', 'CategoryPath', 'Name', 'Code',
+        'VariableID', 'Action', 'ID', 'CategoryPath', 'Name', 'Code',
         'ShortDescription', 'Description',
         'Price', 'RRP', 'Stock', 'Weight', 'CategoryManagement',
         'Image1', 'Image2', 'Image3','Image4', 'Image5',
@@ -181,22 +178,50 @@ def check_row(row, *args):
         'simple': create_simple_product_row,
     }.get(type, False)
 
-def get_update_index(converted, row, *args):
+def get_variant_update_index(converted, row, *args):
+    product_id = row.get('Parent')[3:]
+    match_ids = [r for r in converted if product_id in r.get('VariableID')]
+
     row_variant1 = row.get('Attribute 1 value(s)')
     row_variant2 = row.get('Attribute 2 value(s)')
-    print(row_variant1)
-    print(row_variant2)
-    print([r.get('VariantItem1') for r in converted])
-    print([r.get('VariantItem2') for r in converted])
-    print(row_variant1 in [r.get('VariantItem1') for r in converted])
-    print(row_variant2 in [r.get('VariantItem2') for r in converted])
-    match = [r for r in converted if row_variant1 in r.values() and row_variant2 in r.values()].pop()
-    return converted.index(match)
+    match_variants = [r for r in converted if row_variant1 in r.values() and row_variant2 in r.values()]
+
+    if not match_variants:
+        print(f'no match::\n{row}\n')
+        return False
+    match = match_variants.pop()
+    try:
+        index = converted.index(match)
+        if converted[index].get('Name') in row.get('Name'):
+            return index
+        else:
+            return False
+    except ValueError:
+        return False
+
+def get_product_update_index(converted, row, *args):
+    product_id = row.get('Parent')[3:]
+    match_ids = [r for r in converted if product_id in r.get('VariableID')]
+    product_match = [r for r in match_ids if r.get('Action') == 'Add Product']
+
+    if not product_match:
+        print(f'no match::\n{row}\n')
+        return False
+    match = product_match.pop()
+    try:
+        return converted.index(match)
+    except ValueError:
+        return False
 
 def saver(string):
     saved = string.replace("'","\'") if "'" in string else string
     saved = string.replace('"', '\"') if '"' in string else string
     return saved
+
+def update_variable_product_cell(old_row, new_row, title):
+    current = 0 if old_row.get(title) in [None, ''] else float(old_row.get(title))
+    competing = 0 if new_row.get(title) in [None, ''] else float(new_row.get(title))
+    return competing if competing > current else current
 
 def convert(file, *args):
     wordpress_header = file.fieldnames
@@ -211,12 +236,26 @@ def convert(file, *args):
         if not type: continue
 
         new_row, variant_list = type(EKM_Header, row)
-        if variant_list: {converted.append(variant) for variant in variant_list}
 
         if type == update_variant_product_row:
-            index = get_update_index(converted, row)
-            old_row = converted.pop(index)
-            updated_variant = {**old_row, **new_row}
-            converted.insert(index, updated_variant)
+            index = get_variant_update_index(converted, row)
+            if index:
+                old_row = converted.pop(index)
+                updated_variant = {**old_row, **new_row}
+                converted.insert(index, updated_variant)
+            index = get_product_update_index(converted, row)
+            if index:
+                old_row = converted.pop(index)
+                updates = {
+                    'Price': update_variable_product_cell(old_row, new_row, 'Price'),
+                    'RRP': update_variable_product_cell(old_row, new_row, 'RRP'),
+                    'Stock': update_variable_product_cell(old_row, new_row, 'Stock'),
+                }
+                updated_product = {**old_row, **updates}
+                converted.insert(index, updated_product)
+            continue
+
+        converted.append(new_row)
+        if variant_list: {converted.append(variant) for variant in variant_list}
 
     return converted, EKM_Header
