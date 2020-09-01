@@ -128,13 +128,13 @@ def createProduct(row, fieldnames):
 
     numCheck = lambda x: x if type(x) == int and x != '' else 0
     changes = {
-        'Price': numCheck(row['PRICE']),
-        'Stock': numCheck(row['STOCK']),
+        'Price': numCheck(row.get('PRICE', '')),
+        'Stock': numCheck(row.get('STOCK', '')),
     }
     popit = [f'OptionName{i}' for i in range(3)] +\
             [f'OptionItemName{i}'for i in range(3)] + \
             ['skip']
-    {productOption.pop(p, None) for p in popit}
+    {product.pop(p, None) for p in popit}
     return {**product, **changes}
 
 def convert(file, *args):
@@ -147,7 +147,7 @@ def convert(file, *args):
         if row['TITLE'] == '':
             continue
         # Append row to filerow list
-        converted.append(createProduct(row, EKM_Header, attribute_set))
+        converted.append(createProduct(row, EKM_Header))
         # Check if the row has variants
         x, sk = 0, 0 # x and sk for variant calculation
         for x in range(3):
